@@ -1,0 +1,456 @@
+---
+title: "Heart disease Project"
+author: "Moimadnan Djimtone"
+date: "2024-11-17"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Data Preparation
+
+```{r}
+# Load the necessary libraries
+library(ggplot2)
+library(dplyr)
+library(glmnet)
+library(pROC)
+library(readr)
+library(tidyr)
+```
+
+## a. Download and Load the dataset
+
+```{r}
+data_heart <- read_csv('heart.csv') #Here we load our dataset which is heart.csv 
+
+
+data_heart # Here we display the first six of our dataset
+```
+
+## The variables in the dataset are and i describe the brief description for each:
+
+age: Give the age of patients which is the numeric type
+
+sex: Give the sex of patients 1 for male and 0 for female which binary
+
+cp: Means chest pain type which is categorical
+
+trestbps: Means resting blood pressure (in mm Hg on admission to the hospital)
+
+chol: Means serum cholesterol in mg/dL
+
+fbs: Means fasting blood sugar \> 120 mg/dL (1 = True, 0 = False).
+
+restecg: Means resting electrocardiographic results (categorical variable)
+
+thalach: Maximum heart rate achieved
+
+exang: Exercise-induced angina (1 = Yes, 0 = No)
+
+oldpeak: ST depression induced by exercise relative to rest.
+
+slope: The slope of the peak exercise ST segment (categorical variable)
+
+ca: Number of major vessels (0-3) colored by fluoroscop
+
+thal: Thalassemia (categorical variable):
+
+target: Presence of heart disease (1 = Presence, 0 = No heart disease)
+
+# b. Select variables for analysis
+
+age: Give the age of patients which is the numeric type
+
+sex: Give the sex of patients 1 for male and 0 for female which binary
+
+cp: Means chest pain type which is categorical
+
+chol: Means serum cholesterol in mg/dL
+
+target: Presence of heart disease (1 = Presence, 0 = No heart disease)
+
+```{r}
+# Select the required variables for analysis
+selected_data <- data_heart[, c("target", "age", "sex", "cp", "chol")]
+selected_data
+```
+
+# 2. Data Cleaning
+
+### Remove rows with missing values, if there are any such
+
+```{r}
+#Firstly we are going to check the missing values if there are
+sum(is.na(selected_data)) #After verification, there are no missing values so we procede so we don't have the columns to remove
+
+```
+
+We see that there is no missing values in our dataset, now we are going to check if there are duplicates data in our dataset, if there are we're going to remove theses duplicates data.
+
+```{r}
+#Check the duplicate data 
+duplicate_data <- data_heart[duplicated(selected_data),]
+duplicate_data
+```
+
+We see now that there are more than 700 hundred data duplicate so we're going to remove all duplicate data in our dataset.
+
+```{r}
+#From here, we want to clean ou remove the duplicate data in our dataset
+data_clean <- data_heart[!duplicated(selected_data), ]
+data_clean
+```
+
+Once remove our duplicate dataset, we have now 302 clear rows and 14 clear columns.
+
+### Convert categorical variables (cp and sex) info facotrs
+
+```{r}
+# Convert the 'sex' variable into a factor
+# 0 = Female, 1 = Male
+data_clean$sex <- factor(data_clean$sex, levels = c(0, 1), labels = c("Female", "Male"))
+
+data_clean$cp <- factor(data_clean$cp, levels = c(0, 1, 2, 3),
+                        labels = c("Type 1", "Type 2", "Type 3", "Type 4"))
+
+# Verify the changes
+str(data_clean)
+
+```
+
+```{r}
+
+```
+
+### Convert the target variable (target) into a factor.
+
+```{r}
+data_clean$target <- as.factor(data_clean$target)
+str(data_clean)
+```
+
+### Provide the R code you used to clean the dataset.
+
+#### The R code we used to clean the dataset are:
+
+read_csv(), read_xlsl(), read_sql(): permit us to read our dataset
+
+head() : generally display the first six rows of our dataset
+
+str() : to check the structure of our dataset
+
+is.na() : To check the missing values if there are exists
+
+factor() : To convert a categorical variable in factor
+
+duplicate(): To check if there are duplicates data in our dataset
+
+na.omit(): this function manage the missing data that means we're going to use this commande to clean our dataset if there are missing values
+
+### How many rows and columns are in the cleaned dataset?
+
+```{r}
+data_clean
+```
+
+After display, we see that we have 302 rows and 14 columns.
+
+# 3. Exploratory Data Analysis
+
+### Summarize the variables using the summary() function.
+
+```{r}
+# Here we want to summarize our dataset in using summary()
+summary(data_clean)
+```
+
+With summary(), it's display some descriptive statistics like the mean, the median, the maximum, the third quartile, the minimum and the first quartile of each columns content the variables age, sex, cp, etc. We see that at each variable we describe the statistics. We apply this in our cleaned data.
+
+## Visualizing Distributions
+```{r}
+#install.packages("DataExplorer")
+library(DataExplorer)
+
+# Visualize distributions
+plot_histogram(data_clean)
+```
+Age : Displays a right-skewed distribution, indicating more younger individuals in the dataset.
+CA (Coronary Artery disease): Shows a bimodal distribution, suggesting two distinct groups based on artery blockage.
+Cholesterol (chol): Exhibits a peak around 200 mg/dL, suggesting this is a common cholesterol level among participants.
+Chest Pain  Type(cp): The distribution is concentrated at specific values, indicating common types of chest pain experienced by individuals. 
+Oldpeak : Shows a right-skewed distribution, indicating that most individuals have lower exercise-induced ST depression.
+Resting Electrocardiographic Results (restecg) : Displays a concentrated distribution, suggesting common findings in resting ECG.
+Slope: The distribution peaks at certain values, indicating prevalent slopes in exercise test responses.
+Thalassemia (thal): Shows a concentrated distribution with a few values, indicating common thalassemia levels.
+Maximum Heart Rate Achieved (thalach): Displays a normal distribution centered around 150 bpm.
+Resting Blood Pressure (trestbps): Also shows a normal distribution, suggesting a typical range of resting blood pressure among the population.
+
+```{r}
+boxplot(data_clean, by = "target") # Replace 'target' with your dependent variable name
+```
+
+Age: The boxplot shows median age around 55, with a wider interquartile range, suggesting variability in age among individuals with heart disease.
+CA (coronary artery disease): The boxplot indicates a bimodal distribution, reflecting differing levels of artery blockage among the population.
+Cholesterol (chol): The median cholesterol level appears around 200 mg/dL, with some outliers, suggesting variability in cholesterol among individuals with heart disease.
+Chest Pain Type (cp): The boxplot indicates a range of chest pain types, with clear distinctions between categories.
+Oldpeak: Shows a higher median for individuals with heart disease, indicating more significant ST depression during exercise.
+Resting Electrocardiographic Results (restecg): The boxplot displays typical findings, with some variation in results.
+Slope: Reflects different slopes of exercise test responses, indicating variability in exercise tolerance.
+Thalassemia (thal): Shows a limited range, suggesting a commonality in thalassemia levels.
+Maximum Heart Rate Achieved (thalach): The boxplot indicates a median around 150 bpm, with variability among individuals.
+Resting Blood Pressure (trestbps): Displays a typical range of resting blood pressure, indicating overall cardiovascular health.
+
+### Correlation for numerical variable
+```{r}
+#install.packages("corrplot")  # Install if not already installed
+library(corrplot)  # Load the package
+
+# Compute the correlation matrix for numeric variables
+library(dplyr)  # Ensure dplyr is loaded for select_if()
+corr_matrix <- cor(select_if(data_clean, is.numeric))
+
+# Plot the correlation heatmap
+corrplot(corr_matrix, method = "color", type = "upper", tl.col = "black")
+```
+This explain the correlation between variables.
+
+
+### Create boxplots of chol across levels of target.
+
+```{r}
+
+# We have already load the ggplot2 in the beginning so don't need again here
+
+# Assuming that our dataset is data_heart
+# Convert target to a factor if not already done
+#data_clean$target <- as.factor(data_clean$target)
+
+# Here is our boxplot
+ggplot(data_clean, aes(x = target, y = chol, fill = target)) +
+  geom_boxplot() +
+  labs(
+    title = "Boxplots of Level of Cholesterol Across Heart Disease Status",
+    x = "Heart Disease (0 = No, 1 = Yes)",
+    y = "Level of Cholesterol "
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("green", "red"), name = "Heart Disease")
+
+```
+
+We see in our boxplots that the 1 represent the presence of heart disease and the 0 means lack of heart disease. The boxplots indicate the interquartile range means we have the IQR, 25th,75th in each representation but not the same like we see. We see in our second boxplot means the red boxplot contains the outliers more than the first(green) boxplot that means that the second boxplot has more variability cholesterol level, this represente that theses individuals who have the heart disease have extreme cholesterol values than those don't have heart disease. We remark also that in the first boxplot, the median is bigger than the second boxplot that means that the cholesterol is an important factor in this case.
+
+
+
+### Create bar plots for sex and cp with respect to target.
+
+```{r}
+
+
+```
+
+```{r}
+# Combine data for sex and cp with respect to target
+data_sex_cp <- data_clean %>% 
+  pivot_longer(cols = c(sex, cp), names_to = "Variable", values_to = "Value")
+
+# Create bar plots
+library(ggplot2)
+ggplot(data_sex_cp, aes(x = target, fill = as.factor(Value))) +  # Convert Value to factor
+  geom_bar(position = "dodge") +
+  facet_wrap(~ Variable, scales = "free", labeller = labeller(Variable = c(sex = "Sex", cp = "Chest Pain Type"))) +
+  labs(
+    title = "Bar Plots of Sex and Chest Pain Type across Heart Disease",
+    x = "Heart Disease (0 = No, 1 = Yes)",
+    y = "Count",
+    fill = "Category"
+  ) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3")
+
+
+```
+
+We see here in our bar plot that the first one represente cp or Chest Pain types and the second one represente the sex. After our obervation, we remark that in cp for No disease heart, the type 1 indicate the count more than 100 so we can say that this type is less to find disease respect to type 2, type 3 and type 4. In cp again for Yes disease heart, we observe that the type 3 has more disease follows by type 2, type 1 and type 4.
+
+In second bar plot, comparing sex respect to target, we observe that the percentage of Male doesn't have the disease spend largelly the percentage of female doesn't have disease and the percentage of male has disease is no too most comparing respect to female.
+
+# 4. Fitting a Logistic Regression Model
+
+### Fit a logistic regression model to predict target using age, sex, cp, and chol as predictors.
+
+```{r}
+#We fit logistic regression model respect to target
+logistic_model <- glm(target ~ age + sex + cp + chol, data = data_clean, family = "binomial")
+
+# View model summary
+summary(logistic_model)
+
+```
+
+In the course, we have seen that the coefficients represent the log-odds of survival for a unit change in the predictor. So if the coefficients are positive that means the predictor increases the likelihood of heart disease and if the the coefficients are negative that's increase in the predictor decreases the likelihood of heart disease. In this case, we are going to conclude that the cpType 2, cpType 3, cpType 4 have strong positive effect, this indicating that the three cpType are much more likely to have heart disease compare to others which are negative in the estimate.
+
+# 5. Model Interpretation
+
+### Convert the coefficients into odds ratios using exp(coef()).
+
+```{r}
+# Conversion of coefficients to odds ratios
+exp(coef(logistic_model))
+
+# from here, we have our Confidence intervals for odds ratios
+exp(confint(logistic_model))
+
+```
+
+After our conversion, we observe that the value of cpType 2, cpType 3, cpType 4 are greater than one so the predictor increases the likelihood of heart disease. sexMale has lower odds (0.095) of heart disease than sexFemale. For chol, the predictor decreases the likelihood of heart disease.
+
+# 6. Model Comparison
+
+```{r}
+# We fit our reduce model
+reduced_model <- glm(target ~ age + sex + cp, data = data_clean, family = binomial)
+summary(reduced_model)
+
+```
+
+### Perform a likelihood ratio test between the full and reduced models using anova().
+
+```{r}
+# Here we want to perform the full model with more predictors
+full_model <- glm(target ~ age + sex + cp + chol + thalach, data = data_clean, family = binomial)
+
+# Perform the Likelihood Ratio Test
+anova(reduced_model, full_model, test = "Chisq")
+
+```
+
+Including chol significantly improve the model because refer to the course, you say that if Low p-value (\< 0.05), that means that chol provides significant additional information.
+
+# 7. Model Predictions and Performance
+
+### Predict probabilities of heart disease for all individuals.
+
+```{r}
+# Predict probabilities using the full model (or reduced model)
+predicted_probs <- predict(full_model, type = "response")
+
+# Display the first few predicted probabilities
+head(predicted_probs)
+
+# Add the predicted probabilities to the dataset
+data_clean$predicted_probabilities <- predicted_probs
+
+```
+
+```{r}
+predicted_probs
+```
+
+### Convert these probabilities into binary predictions using a threshold of 0.5.
+
+In this case, we can apply a simple thresholding operation to predict probabilities into binary predictions using a threshold of 0.5.
+
+```{r}
+# Convert probabilities to binary predictions using a threshold of 0.5
+predicted_class <- ifelse(predicted_probs >= 0.5, 1, 0)
+
+
+# we add the binary predictions to the dataset
+data_clean$predicted_class <- predicted_class
+
+# we display the first few rows with the predicted probabilities and binary predictions
+head(data_clean[, c("predicted_probabilities", "predicted_class")])
+
+```
+
+### Create a confusion matrix to evaluate the model's performance.
+
+```{r}
+#We fit the full logistic regression model
+# We're predicting the target variable (presence of heart disease) 
+full_model <- glm(target ~ age + sex + cp + chol + thalach, data = data_clean, family = binomial)
+
+# Predict probabilities using the fitted model
+predicted_probs <- predict(full_model, type = "response")
+
+# Convert probabilities to binary predictions using a threshold of 0.5
+predicted_class <- ifelse(predicted_probs >= 0.5, 1, 0)
+
+# Add the binary predictions to the dataset
+data_clean$predicted_class <- predicted_class
+
+# Create the confusion matrix by comparing actual values with predicted values
+confusion_matrix <- table(Predicted = data_clean$predicted_class, Actual = data_clean$target)
+
+# Print the confusion matrix
+print("Confusion Matrix:")
+print(confusion_matrix)
+
+# Calculate performance metrics
+
+# Accuracy: (TP + TN) / Total
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+
+# Precision: TP / (TP + FP)
+precision <- confusion_matrix[2, 2] / sum(confusion_matrix[2, ])
+
+# Recall: TP / (TP + FN)
+recall <- confusion_matrix[2, 2] / sum(confusion_matrix[, 2])
+
+# F1-Score: 2 * (Precision * Recall) / (Precision + Recall)
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+# Print the metrics
+cat("Accuracy: ", accuracy, "\n")
+cat("Precision: ", precision, "\n")
+cat("Recall: ", recall, "\n")
+cat("F1-Score: ", f1_score, "\n")
+
+```
+
+The accuracy of the model is 77% and we have 39 False Positive and 28 False Negative.
+
+# 8. ROC Curve and AUC
+
+```{r}
+# Install the pROC package if you haven't already
+#install.packages("pROC")
+
+# Load the pROC package
+library(pROC)
+
+
+
+# Generate the ROC curve
+roc_curve <- roc(data_clean$target, predicted_probs)
+
+# Plot the ROC curve
+plot(roc_curve, main = "ROC Curve for Heart Disease Prediction", col = "blue", lwd = 2)
+
+
+
+# Calculate the AUC
+auc_value <- auc(roc_curve)
+
+# Display the AUC value
+auc_value
+
+```
+
+The ROC curve summarizes the trade-off between sensitivity and specificity at different thresholds. The Area Under Curve (AUC) quantifies the model's discriminative ability. Our AUC = 87% which indicates that the model is quite effective at distinguishing between the two classes and has a strong ability to predict heart disease presence or absence.
+
+Reference:
+
+<https://en.wikipedia.org/wiki/Classification>
+
+<https://en.wikipedia.org/wiki/Receiver_operating_characteristic>
+
+<https://www.kaggle.com/datasets/johnsmith88/heart-disease-dataset>
+
+Lecture 3: Classification
